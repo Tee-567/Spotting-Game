@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมจับผิดภาพหรรษาสำหรับเด็ก (Kids Spot the Difference)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Kanit & Fredoka -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti for Victory -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        * {
+            font-family: 'Kanit', 'Fredoka', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .font-fredoka {
+            font-family: 'Fredoka', cursive, sans-serif;
+        }
+
+        /* Custom Bounce & Pulse Animations */
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(2deg); }
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(255, 204, 0, 0.6); }
+            50% { box-shadow: 0 0 30px rgba(255, 204, 0, 0.9); }
+        }
+
+        .animate-float {
+            animation: floatSlow 4s ease-in-out infinite;
+        }
+
+        .animate-glow {
+            animation: pulseGlow 2s infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Magnifying Glass Cursor Area */
+        .magnifier-active {
+            cursor: crosshair;
+        }
+
+        /* Shape Marker CSS styles */
+        .spot-marker {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            transition: all 0.15s ease-out;
+            pointer-events: auto;
+        }
+
+        .spot-marker.dragging {
+            opacity: 0.8;
+            transform: translate(-50%, -50%) scale(1.15);
+            z-index: 50;
+        }
+
+        /* Found Ring Pulse */
+        @keyframes ringExpand {
+            0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+        }
+
+        .found-ring {
+            animation: ringExpand 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Error Cross Animation */
+        @keyframes errorPop {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.3); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+
+        .error-cross {
+            animation: errorPop 0.8s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-amber-50 min-h-screen text-slate-800 flex flex-col justify-between overflow-x-hidden selection:bg-pink-300">
+
+    <!-- Top Header Navigation -->
+    <header class="bg-gradient-to-r from-amber-400 via-orange-400 to-pink-500 text-white p-3 md:p-4 shadow-lg sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <button onclick="showScreen('HOME')" class="flex items-center gap-2 hover:scale-105 transition-transform group focus:outline-none">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-white text-amber-500 rounded-2xl flex items-center justify-center text-xl md:text-2xl font-bold shadow-md group-hover:rotate-6 transition-transform">
+                    🔍
+                </div>
+                <div class="text-left">
+                    <h1 class="text-xl md:text-2xl font-black font-fredoka tracking-wide drop-shadow-sm leading-tight">จับผิดภาพหรรษา</h1>
+                    <p class="text-xs text-amber-100 hidden sm:block">Spot the Difference Kids Edition</p>
+                </div>
+            </button>
+
+            <!-- Navigation Buttons -->
+            <div class="flex items-center gap-2 md:gap-3">
+                <button onclick="showScreen('LIBRARY')" class="px-3 py-1.5 md:px-4 md:py-2 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl font-bold text-xs md:text-sm transition flex items-center gap-1.5 border border-white/30">
+                    <i class="fa-solid fa-images"></i>
+                    <span>คลังภาพ</span>
+                </button>
+                <button onclick="showScreen('LEADERBOARD')" class="px-3 py-1.5 md:px-4 md:py-2 bg-yellow-300 hover:bg-yellow-200 text-amber-900 rounded-xl font-bold text-xs md:text-sm transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-trophy text-amber-600"></i>
+                    <span>อันดับสูงสุด</span>
+                </button>
+                <button id="soundToggleBtn" onclick="toggleSound()" class="w-9 h-9 md:w-10 md:h-10 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl font-bold text-sm transition flex items-center justify-center border border-white/30">
+                    <i class="fa-solid fa-volume-high" id="soundIcon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto w-full p-4 flex-grow flex flex-col justify-center items-center">
+
+        <!-- SCREEN 1: HOME (Role Selection) -->
+        <section id="screen-HOME" class="w-full max-w-4xl flex flex-col items-center text-center my-auto py-6">
+            <div class="inline-block bg-pink-100 text-pink-600 px-4 py-1.5 rounded-full text-sm font-bold mb-4 shadow-sm animate-bounce">
+                🎉 ยินดีต้อนรับน้องๆ ทุกคน! เลือกฝั่งที่อยากเล่นได้เลย
+            </div>
+            
+            <h2 class="text-3xl sm:text-5xl font-black text-slate-800 mb-2 leading-tight">
+                เกมจับผิดภาพ <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-pink-600">สุดสนุก</span>
+            </h2>
+            <p class="text-slate-600 max-w-lg mb-8 text-sm sm:text-base">
+                สนุกกับการสร้างจุดจับผิดเอง หรือจะท้าทายสายตาแหลมคมค้นหาจุดต่างจากเพื่อนๆ!
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+                <!-- Option 1: Spot Creator -->
+                <div class="bg-white rounded-3xl p-6 shadow-xl hover:shadow-2xl border-4 border-amber-300 hover:border-amber-400 transition-all transform hover:-translate-y-2 flex flex-col items-center justify-between group cursor-pointer" onclick="startCreatorFlow()">
+                    <div class="w-24 h-24 bg-gradient-to-br from-amber-400 to-orange-400 rounded-3xl flex items-center justify-center text-5xl text-white shadow-lg mb-4 group-hover:scale-110 transition-transform">
+                        🎨
+                    </div>
+                    <div>
+                        <span class="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">ฝั่งที่ 1</span>
+                        <h3 class="text-2xl font-black text-slate-800 mt-2 mb-2">ฝั่งสร้างจุดผิดสังเกต</h3>
+                        <p class="text-slate-5xl text-xs sm:text-sm text-slate-500 mb-6">
+                            เลือกระบบภาพ AI แสนสวย แล้วนำรูปทรง วงกลม สามเหลี่ยม สี่เหลี่ยม มาวางซ่อน 5 จุดภายใน 30 วินาที!
+                        </p>
+                    </div>
+                    <button class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl font-bold text-lg shadow-md transition group-hover:shadow-lg flex items-center justify-center gap-2">
+                        <span>เริ่มสร้างจุดผิดสังเกต</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+
+                <!-- Option 2: Spot Finder -->
+                <div class="bg-white rounded-3xl p-6 shadow-xl hover:shadow-2xl border-4 border-sky-300 hover:border-sky-400 transition-all transform hover:-translate-y-2 flex flex-col items-center justify-between group cursor-pointer" onclick="showScreen('LIBRARY')">
+                    <div class="w-24 h-24 bg-gradient-to-br from-sky-400 to-indigo-500 rounded-3xl flex items-center justify-center text-5xl text-white shadow-lg mb-4 group-hover:scale-110 transition-transform">
+                        🔎
+                    </div>
+                    <div>
+                        <span class="bg-sky-100 text-sky-800 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">ฝั่งที่ 2</span>
+                        <h3 class="text-2xl font-black text-slate-800 mt-2 mb-2">ฝั่งหาจุดผิดสังเกต</h3>
+                        <p class="text-slate-5xl text-xs sm:text-sm text-slate-500 mb-6">
+                            ใช้แว่นขยายค้นหาจุดต่างทั้ง 5 จุดแข่งกับเวลา 30 วินาที ห้ามทายผิดเกิน 2 ครั้งนะ!
+                        </p>
+                    </div>
+                    <button class="w-full py-3.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-2xl font-bold text-lg shadow-md transition group-hover:shadow-lg flex items-center justify-center gap-2">
+                        <span>เลือกรูปจากคลังภาพ</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCREEN 2: CREATOR MODE (ฝั่งสร้างจุด) -->
+        <section id="screen-CREATOR" class="w-full max-w-5xl flex-col items-center hidden py-2">
+            <!-- Top Controls & Timer bar -->
+            <div class="w-full bg-white rounded-2xl p-4 shadow-md border-2 border-amber-200 mb-4 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-xl font-bold">
+                        1
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">ฝั่งสร้างจุดผิดสังเกต (Creator)</h2>
+                        <p class="text-xs text-slate-500">วางจุดสังเกตในภาพขวาให้ครบ <span id="creatorSpotCountText" class="font-bold text-amber-600">0/5</span> จุด</p>
+                    </div>
+                </div>
+
+                <!-- Timer Indicator -->
+                <div class="flex items-center gap-3 bg-amber-50 px-4 py-2 rounded-xl border border-amber-200">
+                    <i class="fa-solid fa-clock text-amber-600 text-xl animate-spin"></i>
+                    <div>
+                        <div class="text-xs text-slate-500 font-bold">เวลาที่เหลือ</div>
+                        <div class="text-2xl font-black text-amber-600 font-fredoka leading-none" id="creatorTimerText">30s</div>
+                    </div>
+                </div>
+
+                <!-- Theme / AI Generator Select -->
+                <div class="flex gap-2">
+                    <button onclick="generateNewAITheme()" class="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>เจนภาพด้วย Gemini AI</span>
+                    </button>
+                    <button onclick="autoFillCreatorSpots()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition">
+                        ⚡ สุ่มวางที่เหลือ
+                    </button>
+                </div>
+            </div>
+
+            <!-- Toolbar: Shapes & Colors -->
+            <div class="w-full bg-white rounded-2xl p-3 shadow-md border-2 border-amber-200 mb-4 flex flex-wrap items-center justify-between gap-4">
+                <!-- Shape Selector -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500 mr-1">เลือกรูปทรง:</span>
+                    <button onclick="selectShape('circle')" id="shapeBtn-circle" class="shape-btn px-3 py-1.5 bg-amber-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition shadow-sm">
+                        <i class="fa-regular fa-circle"></i> วงกลม
+                    </button>
+                    <button onclick="selectShape('triangle')" id="shapeBtn-triangle" class="shape-btn px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-play -rotate-90 text-[10px]"></i> สามเหลี่ยม
+                    </button>
+                    <button onclick="selectShape('square')" id="shapeBtn-square" class="shape-btn px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 transition">
+                        <i class="fa-regular fa-square"></i> สี่เหลี่ยม
+                    </button>
+                </div>
+
+                <!-- Color Selector -->
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500 mr-1">เลือกสี:</span>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="selectColor('#ef4444')" class="color-btn w-7 h-7 rounded-full bg-red-500 ring-2 ring-offset-2 ring-red-500 transition-transform scale-110" data-color="#ef4444"></button>
+                        <button onclick="selectColor('#eab308')" class="color-btn w-7 h-7 rounded-full bg-yellow-500 transition-transform" data-color="#eab308"></button>
+                        <button onclick="selectColor('#22c55e')" class="color-btn w-7 h-7 rounded-full bg-green-500 transition-transform" data-color="#22c55e"></button>
+                        <button onclick="selectColor('#3b82f6')" class="color-btn w-7 h-7 rounded-full bg-blue-500 transition-transform" data-color="#3b82f6"></button>
+                        <button onclick="selectColor('#a855f7')" class="color-btn w-7 h-7 rounded-full bg-purple-500 transition-transform" data-color="#a855f7"></button>
+                        <button onclick="selectColor('#ec4899')" class="color-btn w-7 h-7 rounded-full bg-pink-500 transition-transform" data-color="#ec4899"></button>
+                    </div>
+                </div>
+
+                <div class="text-xs text-slate-400">
+                    💡 คลิกที่รูปขวาเพื่อวาง / ลากเพื่อย้ายจุดได้
+                </div>
+            </div>
+
+            <!-- Double Image Dual Canvas Container -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                <!-- Left Image (Original / Clean) -->
+                <div class="bg-white p-3 rounded-2xl shadow-md border-2 border-slate-200 flex flex-col items-center">
+                    <div class="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1">
+                        <i class="fa-solid fa-image text-slate-400"></i> ภาพต้นฉบับ (Original Image)
+                    </div>
+                    <div class="relative w-full aspect-square bg-slate-100 rounded-xl overflow-hidden shadow-inner flex items-center justify-center">
+                        <canvas id="creatorCanvasLeft" class="w-full h-full object-contain"></canvas>
+                        <div id="aiLoadingLeft" class="hidden absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex-col items-center justify-center text-white p-4 text-center">
+                            <i class="fa-solid fa-sparkles text-3xl text-yellow-300 animate-spin mb-2"></i>
+                            <p class="font-bold text-sm">Gemini AI กำลังวาดภาพการ์ตูนสุดสวย...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Image (Interactive Placement Canvas) -->
+                <div class="bg-white p-3 rounded-2xl shadow-md border-2 border-amber-300 flex flex-col items-center">
+                    <div class="text-xs font-bold text-amber-700 mb-2 flex items-center gap-1">
+                        <i class="fa-solid fa-pen-ruler text-amber-500"></i> ภาพสร้างจุดผิดสังเกต (วางได้ 5 จุด)
+                    </div>
+                    <div id="creatorRightContainer" class="relative w-full aspect-square bg-slate-100 rounded-xl overflow-hidden shadow-inner cursor-crosshair">
+                        <canvas id="creatorCanvasRight" class="w-full h-full object-contain"></canvas>
+                        <!-- Interactive Spots Overlay Container -->
+                        <div id="creatorSpotsOverlay" class="absolute inset-0"></div>
+                        
+                        <div id="aiLoadingRight" class="hidden absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex-col items-center justify-center text-white p-4 text-center">
+                            <i class="fa-solid fa-sparkles text-3xl text-yellow-300 animate-spin mb-2"></i>
+                            <p class="font-bold text-sm">กำลังเตรียมผ้าใบวาดภาพ...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="mt-6 flex justify-center w-full">
+                <button id="saveCreatorPuzzleBtn" onclick="saveCreatorPuzzle()" disabled class="px-8 py-3.5 bg-slate-300 text-slate-500 rounded-2xl font-bold text-lg shadow transition flex items-center gap-2 cursor-not-allowed">
+                    <i class="fa-solid fa-check-circle"></i>
+                    <span>เสร็จสิ้นและบันทึกลงคลังภาพ (0/5)</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- SCREEN 3: PUZZLE LIBRARY (เลือกรูปภาพที่สร้างไว้) -->
+        <section id="screen-LIBRARY" class="w-full max-w-5xl flex-col items-center hidden py-4">
+            <div class="w-full flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div>
+                    <h2 class="text-2xl sm:text-3xl font-black text-slate-800">คลังรูปภาพจับผิดสังเกต 🖼️</h2>
+                    <p class="text-sm text-slate-500">เลือกรูปภาพที่สร้างจากฝั่งที่ 1 เพื่อเริ่มเล่นหาจุดต่าง!</p>
+                </div>
+                <button onclick="showScreen('HOME')" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-sm transition">
+                    <i class="fa-solid fa-arrow-left"></i> ย้อนกลับ
+                </button>
+            </div>
+
+            <!-- Library Grid -->
+            <div id="libraryGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                <!-- Dynamically Populated Cards -->
+            </div>
+        </section>
+
+        <!-- SCREEN 4: FINDER GAME (ฝั่งหาจุดผิดสังเกต) -->
+        <section id="screen-FINDER" class="w-full max-w-5xl flex-col items-center hidden py-2">
+            <!-- Top Status Dashboard -->
+            <div class="w-full bg-white rounded-2xl p-4 shadow-md border-2 border-sky-200 mb-4 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <div class="inline-block bg-sky-100 text-sky-800 text-xs px-2.5 py-0.5 rounded-md font-bold mb-1">
+                        ฝั่งหาจุดผิดสังเกต (Spot Finder)
+                    </div>
+                    <h2 class="text-xl font-black text-slate-800" id="finderPuzzleTitle">ชื่อรูปภาพ</h2>
+                </div>
+
+                <!-- Game Counters -->
+                <div class="flex items-center gap-4">
+                    <!-- Found Counter -->
+                    <div class="flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200">
+                        <i class="fa-solid fa-bullseye text-emerald-600 text-xl"></i>
+                        <div>
+                            <div class="text-[10px] text-slate-500 font-bold uppercase">หาเจอแล้ว</div>
+                            <div class="text-xl font-black text-emerald-600 font-fredoka leading-none" id="foundSpotsText">0 / 5</div>
+                        </div>
+                    </div>
+
+                    <!-- Mistakes Counter -->
+                    <div class="flex items-center gap-2 bg-rose-50 px-4 py-2 rounded-xl border border-rose-200">
+                        <i class="fa-solid fa-circle-xmark text-rose-500 text-xl"></i>
+                        <div>
+                            <div class="text-[10px] text-slate-500 font-bold uppercase">ทายผิด (สูงสุด 2 ครั้ง)</div>
+                            <div class="text-xl font-black text-rose-500 font-fredoka leading-none" id="mistakesText">0 / 2</div>
+                        </div>
+                    </div>
+
+                    <!-- Timer Countdown -->
+                    <div class="flex items-center gap-2 bg-amber-50 px-4 py-2 rounded-xl border border-amber-200">
+                        <i class="fa-solid fa-stopwatch text-amber-500 text-xl animate-pulse"></i>
+                        <div>
+                            <div class="text-[10px] text-slate-500 font-bold uppercase">เวลาที่เหลือ</div>
+                            <div class="text-2xl font-black text-amber-600 font-fredoka leading-none" id="finderTimerText">30s</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Split Comparison View -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                <!-- Left Image (Clean Original) -->
+                <div class="bg-white p-3 rounded-2xl shadow-md border-2 border-slate-200 flex flex-col items-center">
+                    <div class="text-xs font-bold text-slate-500 mb-2 flex items-center justify-between w-full">
+                        <span><i class="fa-solid fa-image"></i> ภาพ A (ต้นฉบับ)</span>
+                        <span class="text-slate-400 text-[10px]">เทียบจุดสังเกต</span>
+                    </div>
+                    <div id="finderLeftContainer" class="relative w-full aspect-square bg-slate-100 rounded-xl overflow-hidden shadow-inner magnifier-active">
+                        <canvas id="finderCanvasLeft" class="w-full h-full object-contain"></canvas>
+                        <div id="finderOverlayLeft" class="absolute inset-0"></div>
+                    </div>
+                </div>
+
+                <!-- Right Image (Image with Differences) -->
+                <div class="bg-white p-3 rounded-2xl shadow-md border-2 border-sky-300 flex flex-col items-center">
+                    <div class="text-xs font-bold text-sky-700 mb-2 flex items-center justify-between w-full">
+                        <span><i class="fa-solid fa-magnifying-glass text-sky-500"></i> ภาพ B (คลิกหาจุดต่างที่นี่)</span>
+                        <span class="text-sky-500 text-[10px] font-bold">ใช้แว่นขยายกดหาได้เลย</span>
+                    </div>
+                    <div id="finderRightContainer" class="relative w-full aspect-square bg-slate-100 rounded-xl overflow-hidden shadow-inner magnifier-active">
+                        <canvas id="finderCanvasRight" class="w-full h-full object-contain"></canvas>
+                        <div id="finderOverlayRight" class="absolute inset-0"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCREEN 5: LEADERBOARD (ตารางอันดับ Top 10) -->
+        <section id="screen-LEADERBOARD" class="w-full max-w-3xl flex-col items-center hidden py-4">
+            <div class="w-full text-center mb-6">
+                <div class="inline-block bg-yellow-100 text-yellow-800 p-3 rounded-full text-3xl mb-2 shadow-sm">
+                    🏆
+                </div>
+                <h2 class="text-3xl font-black text-slate-800">ตารางอันดับความไวสูงสุด Top 10</h2>
+                <p class="text-slate-5xl text-xs sm:text-sm text-slate-500">รวมสถิติผู้เล่นที่หาจุดผิดสังเกตได้เร็วที่สุด!</p>
+            </div>
+
+            <div class="bg-white rounded-3xl shadow-xl border-2 border-amber-200 overflow-hidden w-full">
+                <div class="bg-gradient-to-r from-amber-400 to-orange-400 p-4 text-white font-bold grid grid-cols-12 text-center text-xs sm:text-sm">
+                    <div class="col-span-2">อันดับ</div>
+                    <div class="col-span-4 text-left">ผู้เล่น</div>
+                    <div class="col-span-3">ชื่อรูปภาพ</div>
+                    <div class="col-span-3">เวลาที่ใช้</div>
+                </div>
+
+                <div id="leaderboardList" class="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
+                    <!-- Leaderboard Rows populated via JS -->
+                </div>
+            </div>
+
+            <div class="mt-6 flex gap-3">
+                <button onclick="showScreen('HOME')" class="px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold text-sm shadow transition">
+                    <i class="fa-solid fa-house"></i> กลับหน้าหลัก
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL 1: Victory Modal -->
+    <div id="victoryModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-4 border-yellow-400 transform transition-all scale-100 animate-float">
+            <div class="w-20 h-20 bg-yellow-100 text-yellow-500 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-4 shadow-inner">
+                🎉
+            </div>
+            <h3 class="text-2xl sm:text-3xl font-black text-slate-800 mb-1">ยินดีด้วย! คุณชนะแล้ว</h3>
+            <p class="text-slate-500 text-sm mb-4">หาจุดผิดสังเกตครบ 5 จุดเรียบร้อยแล้ว!</p>
+
+            <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200 mb-6 flex justify-around">
+                <div>
+                    <div class="text-xs text-slate-400 font-bold">เวลาที่ทำได้</div>
+                    <div class="text-2xl font-black text-amber-600 font-fredoka" id="winTimeText">0.0s</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-400 font-bold">ทายผิดไป</div>
+                    <div class="text-2xl font-black text-rose-500 font-fredoka" id="winMistakesText">0 ครั้ง</div>
+                </div>
+            </div>
+
+            <div class="mb-6 text-left">
+                <label class="block text-xs font-bold text-slate-600 mb-1">กรอกชื่อของคุณลงบันทึก Top 10:</label>
+                <input type="text" id="winnerNameInput" placeholder="เช่น น้องมีนา 🐱" class="w-full px-4 py-3 bg-slate-100 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400">
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="submitWinRecord()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl font-bold shadow-md transition">
+                    บันทึกสถิติ & ดูอันดับ 🏆
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Defeat Modal -->
+    <div id="defeatModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-4 border-rose-400">
+            <div class="w-20 h-20 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-4 shadow-inner">
+                😢
+            </div>
+            <h3 class="text-2xl font-black text-slate-800 mb-1">เสียใจด้วยนะ!</h3>
+            <p class="text-slate-600 text-sm mb-4" id="defeatReasonText">หมดเวลา 30 วินาที / หรือทายผิดเกินกำหนด</p>
+            
+            <div class="bg-rose-50 p-3 rounded-2xl border border-rose-200 text-xs text-rose-700 font-bold mb-6">
+                ⚠️ รูปภาพนี้จะถูกบันทึกว่า "แพ้แล้ว" ไม่สามารถเลือกเล่นซ้ำได้อีก!
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeDefeatModal()" class="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold shadow transition">
+                    ตกลง และไปเลือกรูปอื่น 🖼️
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Save Creator Puzzle Modal -->
+    <div id="savePuzzleModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full text-center shadow-2xl border-4 border-amber-300">
+            <div class="w-16 h-16 bg-amber-100 text-amber-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3">
+                🎨
+            </div>
+            <h3 class="text-2xl font-black text-slate-800 mb-1">สร้างจุดผิดสังเกตเรียบร้อย!</h3>
+            <p class="text-slate-500 text-xs mb-4">ตั้งชื่อผลงานภาพจับผิดของคุณ เพื่อให้ฝั่งที่ 2 นำไปเล่นค้นหา</p>
+
+            <div class="mb-6 text-left">
+                <label class="block text-xs font-bold text-slate-600 mb-1">ชื่อรูปภาพของคุณ:</label>
+                <input type="text" id="puzzleTitleInput" value="รูปภาพแสนสนุกโดยน้องเก่ง" class="w-full px-4 py-3 bg-slate-100 border border-slate-300 rounded-xl font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400">
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="confirmSavePuzzle()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl font-bold shadow-md transition">
+                    บันทึกลงคลังภาพ ✨
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-100 border-t border-slate-200 py-3 text-center text-xs text-slate-500 mt-6">
+        เกมจับผิดภาพสำหรับเด็ก © 2026 Spot the Difference Kids Edition • AI Powered with Gemini
+    </footer>
+
+    <script>
+        /* Global Audio Synthesizer using Web Audio API */
+        let audioCtx = null;
+        let soundEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'pop') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'correct') {
+                    // Happy chord
+                    [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.frequency.setValueAtTime(freq, now + idx * 0.06);
+                        g.gain.setValueAtTime(0.2, now + idx * 0.06);
+                        g.gain.linearRampToValueAtTime(0.01, now + idx * 0.06 + 0.2);
+                        o.start(now + idx * 0.06);
+                        o.stop(now + idx * 0.06 + 0.2);
+                    });
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.linearRampToValueAtTime(110, now + 0.25);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'victory') {
+                    const notes = [440, 554.37, 659.25, 880];
+                    notes.forEach((freq, i) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.frequency.setValueAtTime(freq, now + i * 0.12);
+                        g.gain.setValueAtTime(0.25, now + i * 0.12);
+                        g.gain.linearRampToValueAtTime(0.01, now + i * 0.12 + 0.3);
+                        o.start(now + i * 0.12);
+                        o.stop(now + i * 0.12 + 0.3);
+                    });
+                }
+            } catch (e) {
+                console.log('Audio playback prevented');
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            if (soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+                playSound('click');
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark';
+            }
+        }
+
+        /* --------------------------------------------------
+           Game State Storage & Preset Data
+        -------------------------------------------------- */
+        const DEFAULT_PUZZLES = [
+            {
+                id: 'preset_1',
+                title: 'สวนสัตว์ตะลุยสนุก 🦒',
+                presetType: 'SAFARI',
+                spots: [
+                    { x: 25, y: 30, shape: 'circle', color: '#ef4444' },
+                    { x: 75, y: 25, shape: 'triangle', color: '#3b82f6' },
+                    { x: 50, y: 60, shape: 'square', color: '#eab308' },
+                    { x: 30, y: 80, shape: 'circle', color: '#a855f7' },
+                    { x: 80, y: 75, shape: 'square', color: '#22c55e' }
+                ],
+                failed: false,
+                createdAt: '2026-09-20'
+            },
+            {
+                id: 'preset_2',
+                title: 'เมืองใต้ทะเลปะการัง 🐠',
+                presetType: 'UNDERWATER',
+                spots: [
+                    { x: 20, y: 20, shape: 'square', color: '#ec4899' },
+                    { x: 60, y: 35, shape: 'circle', color: '#3b82f6' },
+                    { x: 85, y: 55, shape: 'triangle', color: '#22c55e' },
+                    { x: 35, y: 70, shape: 'circle', color: '#ef4444' },
+                    { x: 70, y: 80, shape: 'square', color: '#a855f7' }
+                ],
+                failed: false,
+                createdAt: '2026-09-21'
+            },
+            {
+                id: 'preset_3',
+                title: 'ท่องอวกาศดวงดาว 🚀',
+                presetType: 'SPACE',
+                spots: [
+                    { x: 18, y: 40, shape: 'triangle', color: '#eab308' },
+                    { x: 45, y: 20, shape: 'circle', color: '#a855f7' },
+                    { x: 82, y: 30, shape: 'square', color: '#ef4444' },
+                    { x: 55, y: 75, shape: 'triangle', color: '#3b82f6' },
+                    { x: 80, y: 82, shape: 'circle', color: '#22c55e' }
+                ],
+                failed: false,
+                createdAt: '2026-09-22'
+            }
+        ];
+
+        const DEFAULT_LEADERBOARD = [
+            { name: 'น้องน้ำใส 🌟', puzzleTitle: 'ท่องอวกาศดวงดาว 🚀', time: 12.4, date: '2026-09-22' },
+            { name: 'พี่วินเนอร์ 🏆', puzzleTitle: 'สวนสัตว์ตะลุยสนุก 🦒', time: 14.8, date: '2026-09-21' },
+            { name: 'น้องโฟกัส 🔍', puzzleTitle: 'เมืองใต้ทะเลปะการัง 🐠', time: 18.2, date: '2026-09-23' },
+            { name: 'น้องการ์ตูน 🎨', puzzleTitle: 'สวนสัตว์ตะลุยสนุก 🦒', time: 22.1, date: '2026-09-23' }
+        ];
+
+        let state = {
+            puzzles: [],
+            leaderboard: [],
+            currentPuzzle: null,
+            // Creator State
+            creator: {
+                spots: [], // [{x, y, shape, color}] percentages 0-100
+                selectedShape: 'circle',
+                selectedColor: '#ef4444',
+                timer: 30,
+                timerInterval: null,
+                activeTheme: 'SAFARI',
+                customImageSrc: null,
+                draggingSpotIdx: -1
+            },
+            // Finder State
+            finder: {
+                foundSpotIndices: [],
+                mistakes: 0,
+                timer: 30,
+                timerInterval: null,
+                startTime: 0,
+                elapsedTime: 0,
+                active: false
+            }
+        };
+
+        // Initialize Local Storage
+        function initStorage() {
+            const savedPuzzles = localStorage.getItem('kids_spot_puzzles');
+            if (savedPuzzles) {
+                try { state.puzzles = JSON.parse(savedPuzzles); } catch(e) { state.puzzles = DEFAULT_PUZZLES; }
+            } else {
+                state.puzzles = DEFAULT_PUZZLES;
+                localStorage.setItem('kids_spot_puzzles', JSON.stringify(DEFAULT_PUZZLES));
+            }
+
+            const savedLeaderboard = localStorage.getItem('kids_spot_leaderboard');
+            if (savedLeaderboard) {
+                try { state.leaderboard = JSON.parse(savedLeaderboard); } catch(e) { state.leaderboard = DEFAULT_LEADERBOARD; }
+            } else {
+                state.leaderboard = DEFAULT_LEADERBOARD;
+                localStorage.setItem('kids_spot_leaderboard', JSON.stringify(DEFAULT_LEADERBOARD));
+            }
+        }
+
+        /* --------------------------------------------------
+           Screen Navigation Engine
+        -------------------------------------------------- */
+        function showScreen(screenId) {
+            playSound('click');
+            // Clear running timers
+            clearInterval(state.creator.timerInterval);
+            clearInterval(state.finder.timerInterval);
+
+            document.querySelectorAll('main > section').forEach(sec => {
+                sec.classList.add('hidden');
+                sec.classList.remove('flex');
+            });
+
+            const target = document.getElementById(`screen-${screenId}`);
+            if (target) {
+                target.classList.remove('hidden');
+                target.classList.add('flex');
+            }
+
+            if (screenId === 'LIBRARY') {
+                renderLibrary();
+            } else if (screenId === 'LEADERBOARD') {
+                renderLeaderboard();
+            }
+        }
+
+        /* --------------------------------------------------
+           Canvas Art Generator for Kids Themes
+        -------------------------------------------------- */
+        function drawThemeCanvas(canvas, theme, spots = [], isModified = false) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width = 500;
+            const h = canvas.height = 500;
+
+            // Background Gradients based on theme
+            if (theme === 'SAFARI') {
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#fef08a');
+                grad.addColorStop(0.6, '#bbf7d0');
+                grad.addColorStop(1, '#86efac');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                // Sun
+                ctx.fillStyle = '#fde047';
+                ctx.beginPath(); ctx.arc(420, 80, 50, 0, Math.PI * 2); ctx.fill();
+
+                // Trees / Vegetation
+                ctx.fillStyle = '#15803d';
+                ctx.beginPath(); ctx.arc(100, 420, 90, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(380, 430, 110, 0, Math.PI*2); ctx.fill();
+
+                // Cute Giraffe / Animals
+                ctx.fillStyle = '#f97316';
+                ctx.fillRect(180, 220, 40, 160); // Giraffe Neck
+                ctx.beginPath(); ctx.arc(200, 200, 35, 0, Math.PI*2); ctx.fill(); // Head
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath(); ctx.arc(190, 200, 8, 0, Math.PI*2); ctx.fill(); // Snout
+                ctx.fillStyle = '#78350f';
+                ctx.beginPath(); ctx.arc(180, 240, 6, 0, Math.PI*2); ctx.fill(); // Spots
+                ctx.beginPath(); ctx.arc(200, 280, 8, 0, Math.PI*2); ctx.fill();
+
+                // Cloud
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.arc(120, 100, 30, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(150, 90, 40, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(180, 100, 30, 0, Math.PI*2); ctx.fill();
+
+            } else if (theme === 'UNDERWATER') {
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, '#38bdf8');
+                grad.addColorStop(0.5, '#0284c7');
+                grad.addColorStop(1, '#0369a1');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                // Seabed
+                ctx.fillStyle = '#fde047';
+                ctx.beginPath(); ctx.ellipse(250, 480, 300, 60, 0, 0, Math.PI*2); ctx.fill();
+
+                // Corals
+                ctx.fillStyle = '#f43f5e';
+                ctx.beginPath(); ctx.arc(80, 430, 30, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(110, 410, 25, 0, Math.PI*2); ctx.fill();
+
+                // Fish
+                ctx.fillStyle = '#fb923c';
+                ctx.beginPath(); ctx.ellipse(280, 200, 40, 25, 0, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(320, 200); ctx.lineTo(350, 180); ctx.lineTo(350, 220); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.arc(260, 195, 6, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.arc(258, 195, 3, 0, Math.PI*2); ctx.fill();
+
+                // Bubbles
+                ctx.strokeStyle = '#e0f2fe';
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(180, 150, 12, 0, Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(195, 100, 8, 0, Math.PI*2); ctx.stroke();
+
+            } else if (theme === 'SPACE') {
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, w, h);
+
+                // Stars
+                ctx.fillStyle = '#fef08a';
+                [ [50,60], [120,200], [350,80], [450,220], [80,380], [400,420] ].forEach(([sx, sy]) => {
+                    ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI*2); ctx.fill();
+                });
+
+                // Planet
+                const pGrad = ctx.createRadialGradient(200, 250, 10, 200, 250, 90);
+                pGrad.addColorStop(0, '#c084fc');
+                pGrad.addColorStop(1, '#6b21a8');
+                ctx.fillStyle = pGrad;
+                ctx.beginPath(); ctx.arc(200, 250, 80, 0, Math.PI*2); ctx.fill();
+
+                // Ring
+                ctx.strokeStyle = '#f472b6';
+                ctx.lineWidth = 10;
+                ctx.beginPath(); ctx.ellipse(200, 250, 120, 25, -Math.PI/6, 0, Math.PI*2); ctx.stroke();
+
+                // Rocket
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath(); ctx.ellipse(380, 140, 20, 45, Math.PI/4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath(); ctx.arc(370, 130, 8, 0, Math.PI*2); ctx.fill();
+            }
+
+            // Draw custom overlay spots if modified
+            if (isModified && spots && spots.length > 0) {
+                spots.forEach(spot => {
+                    drawShapeOnCanvas(ctx, spot.x * w / 100, spot.y * h / 100, spot.shape, spot.color);
+                });
+            }
+        }
+
+        // Helper to render individual spot shapes
+        function drawShapeOnCanvas(ctx, x, y, shape, color, size = 22) {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+
+            if (shape === 'circle') {
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else if (shape === 'square') {
+                ctx.beginPath();
+                ctx.rect(x - size, y - size, size * 2, size * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else if (shape === 'triangle') {
+                ctx.beginPath();
+                ctx.moveTo(x, y - size * 1.2);
+                ctx.lineTo(x - size, y + size);
+                ctx.lineTo(x + size, y + size);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        /* Generate New AI Image using Gemini 3.1 Flash Image API */
+        async function generateNewAITheme() {
+            playSound('pop');
+            const leftLoading = document.getElementById('aiLoadingLeft');
+            const rightLoading = document.getElementById('aiLoadingRight');
+            leftLoading.classList.remove('hidden');
+            leftLoading.classList.add('flex');
+            rightLoading.classList.remove('hidden');
+            rightLoading.classList.add('flex');
+
+            const prompts = [
+                "a cute colorful vector illustration of a happy cartoon dinosaur in a magical jungle, bright colors for children",
+                "a cute cartoon space astronaut bunny on the moon with stars, vibrant illustration for kids game",
+                "a joyful cartoon underwater castle with colorful fishes and sea turtles, children book art"
+            ];
+            const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
+
+            const apiKey = ""; // Built-in Gemini runtime key
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: randomPrompt }] }],
+                generationConfig: {
+                    responseModalities: ['IMAGE'],
+                    imageConfig: { aspectRatio: "1:1" }
+                }
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                const part = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+
+                if (part && part.inlineData?.data) {
+                    const img = new Image();
+                    img.onload = () => {
+                        state.creator.customImageSrc = img;
+                        renderCreatorCanvases();
+                        leftLoading.classList.add('hidden');
+                        rightLoading.classList.add('hidden');
+                    };
+                    img.src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                    return;
+                }
+            } catch (err) {
+                console.log("Gemini API call fallback to preset theme:", err);
+            }
+
+            // Fallback to cycling preset themes if API is unavailable
+            const themes = ['SAFARI', 'UNDERWATER', 'SPACE'];
+            let nextTheme = themes[(themes.indexOf(state.creator.activeTheme) + 1) % themes.length];
+            state.creator.activeTheme = nextTheme;
+            state.creator.customImageSrc = null;
+            renderCreatorCanvases();
+
+            leftLoading.classList.add('hidden');
+            rightLoading.classList.add('hidden');
+        }
+
+        /* --------------------------------------------------
+           CREATOR FLOW (ฝั่งสร้างจุดผิดสังเกต)
+        -------------------------------------------------- */
+        function startCreatorFlow() {
+            state.creator.spots = [];
+            state.creator.timer = 30;
+            state.creator.selectedShape = 'circle';
+            state.creator.selectedColor = '#ef4444';
+            state.creator.activeTheme = 'SAFARI';
+            state.creator.customImageSrc = null;
+
+            showScreen('CREATOR');
+            renderCreatorCanvases();
+            startCreatorTimer();
+            setupCreatorInteractivity();
+            updateCreatorUI();
+        }
+
+        function renderCreatorCanvases() {
+            const canvasLeft = document.getElementById('creatorCanvasLeft');
+            const canvasRight = document.getElementById('creatorCanvasRight');
+
+            if (state.creator.customImageSrc) {
+                // Draw Gemini AI Custom Image
+                [canvasLeft, canvasRight].forEach(c => {
+                    c.width = 500; c.height = 500;
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(state.creator.customImageSrc, 0, 0, 500, 500);
+                });
+            } else {
+                // Draw Canvas Theme
+                drawThemeCanvas(canvasLeft, state.creator.activeTheme, [], false);
+                drawThemeCanvas(canvasRight, state.creator.activeTheme, [], false);
+            }
+
+            renderCreatorSpotOverlays();
+        }
+
+        function renderCreatorSpotOverlays() {
+            const overlay = document.getElementById('creatorSpotsOverlay');
+            overlay.innerHTML = '';
+
+            state.creator.spots.forEach((spot, idx) => {
+                const el = document.createElement('div');
+                el.className = 'spot-marker flex items-center justify-center font-bold text-white shadow-lg cursor-grab active:cursor-grabbing';
+                el.style.left = `${spot.x}%`;
+                el.style.top = `${spot.y}%`;
+                el.dataset.index = idx;
+
+                // Render shape icon / SVG inside DOM element
+                if (spot.shape === 'circle') {
+                    el.style.width = '36px'; el.style.height = '36px';
+                    el.style.borderRadius = '50%';
+                    el.style.backgroundColor = spot.color;
+                    el.style.border = '3px solid white';
+                } else if (spot.shape === 'square') {
+                    el.style.width = '36px'; el.style.height = '36px';
+                    el.style.borderRadius = '8px';
+                    el.style.backgroundColor = spot.color;
+                    el.style.border = '3px solid white';
+                } else if (spot.shape === 'triangle') {
+                    el.style.width = '0'; el.style.height = '0';
+                    el.style.borderLeft = '18px solid transparent';
+                    el.style.borderRight = '18px solid transparent';
+                    el.style.borderBottom = `32px solid ${spot.color}`;
+                    el.style.filter = 'drop-shadow(0px 2px 3px rgba(0,0,0,0.3))';
+                }
+
+                // Delete button on hover/click
+                const delBtn = document.createElement('span');
+                delBtn.className = 'absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow cursor-pointer';
+                delBtn.innerHTML = '✕';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    removeCreatorSpot(idx);
+                };
+                el.appendChild(delBtn);
+
+                overlay.appendChild(el);
+            });
+
+            updateCreatorUI();
+        }
+
+        function setupCreatorInteractivity() {
+            const container = document.getElementById('creatorRightContainer');
+            
+            // Click to add spot
+            container.onclick = (e) => {
+                if (e.target.closest('.spot-marker')) return;
+                if (state.creator.spots.length >= 5) {
+                    alert('คุณวางจุดสังเกตครบ 5 จุดแล้ว! ลบหรือย้ายตำแหน่งเดิมได้');
+                    return;
+                }
+
+                const rect = container.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+                state.creator.spots.push({
+                    x: Math.round(x * 10) / 10,
+                    y: Math.round(y * 10) / 10,
+                    shape: state.creator.selectedShape,
+                    color: state.creator.selectedColor
+                });
+
+                playSound('pop');
+                renderCreatorSpotOverlays();
+            };
+        }
+
+        function selectShape(shape) {
+            playSound('click');
+            state.creator.selectedShape = shape;
+            document.querySelectorAll('.shape-btn').forEach(btn => {
+                btn.classList.remove('bg-amber-500', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-700');
+            });
+            const activeBtn = document.getElementById(`shapeBtn-${shape}`);
+            activeBtn.classList.remove('bg-slate-100', 'text-slate-700');
+            activeBtn.classList.add('bg-amber-500', 'text-white');
+        }
+
+        function selectColor(colorHex) {
+            playSound('click');
+            state.creator.selectedColor = colorHex;
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-offset-2', 'scale-110');
+                if (btn.dataset.color === colorHex) {
+                    btn.classList.add('ring-2', 'ring-offset-2', 'scale-110');
+                }
+            });
+        }
+
+        function removeCreatorSpot(index) {
+            playSound('click');
+            state.creator.spots.splice(index, 1);
+            renderCreatorSpotOverlays();
+        }
+
+        function updateCreatorUI() {
+            const count = state.creator.spots.length;
+            document.getElementById('creatorSpotCountText').innerText = `${count}/5`;
+            const saveBtn = document.getElementById('saveCreatorPuzzleBtn');
+
+            if (count === 5) {
+                saveBtn.disabled = false;
+                saveBtn.className = 'px-8 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg transition flex items-center gap-2 cursor-pointer animate-bounce';
+                saveBtn.innerText = 'เสร็จสิ้นและบันทึกลงคลังภาพ (5/5) ✨';
+            } else {
+                saveBtn.disabled = true;
+                saveBtn.className = 'px-8 py-3.5 bg-slate-300 text-slate-500 rounded-2xl font-bold text-lg shadow transition flex items-center gap-2 cursor-not-allowed';
+                saveBtn.innerText = `เสร็จสิ้นและบันทึกลงคลังภาพ (${count}/5)`;
+            }
+        }
+
+        function startCreatorTimer() {
+            clearInterval(state.creator.timerInterval);
+            document.getElementById('creatorTimerText').innerText = `${state.creator.timer}s`;
+
+            state.creator.timerInterval = setInterval(() => {
+                state.creator.timer--;
+                document.getElementById('creatorTimerText').innerText = `${state.creator.timer}s`;
+
+                if (state.creator.timer <= 0) {
+                    clearInterval(state.creator.timerInterval);
+                    autoFillCreatorSpots();
+                }
+            }, 1000);
+        }
+
+        // Auto-place remaining spots if 30s timer runs out
+        function autoFillCreatorSpots() {
+            playSound('pop');
+            const colors = ['#ef4444', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+            const shapes = ['circle', 'triangle', 'square'];
+
+            while (state.creator.spots.length < 5) {
+                state.creator.spots.push({
+                    x: Math.floor(Math.random() * 70) + 15,
+                    y: Math.floor(Math.random() * 70) + 15,
+                    shape: shapes[Math.floor(Math.random() * shapes.length)],
+                    color: colors[Math.floor(Math.random() * colors.length)]
+                });
+            }
+
+            renderCreatorSpotOverlays();
+            saveCreatorPuzzle();
+        }
+
+        function saveCreatorPuzzle() {
+            clearInterval(state.creator.timerInterval);
+            document.getElementById('savePuzzleModal').classList.remove('hidden');
+        }
+
+        function confirmSavePuzzle() {
+            playSound('victory');
+            const titleInput = document.getElementById('puzzleTitleInput').value.trim() || 'ภาพจับผิดสังเกตของฉัน';
+            
+            // Create New Puzzle Object
+            const newPuzzle = {
+                id: 'custom_' + Date.now(),
+                title: titleInput,
+                presetType: state.creator.activeTheme,
+                spots: [...state.creator.spots],
+                failed: false,
+                createdAt: new Date().toISOString().split('T')[0]
+            };
+
+            state.puzzles.unshift(newPuzzle);
+            localStorage.setItem('kids_spot_puzzles', JSON.stringify(state.puzzles));
+
+            document.getElementById('savePuzzleModal').classList.add('hidden');
+            showScreen('LIBRARY');
+        }
+
+        /* --------------------------------------------------
+           PUZZLE LIBRARY ENGINE (เลือกเล่นรูปภาพ)
+        -------------------------------------------------- */
+        function renderLibrary() {
+            const grid = document.getElementById('libraryGrid');
+            grid.innerHTML = '';
+
+            state.puzzles.forEach((puzzle) => {
+                const card = document.createElement('div');
+                card.className = `bg-white rounded-3xl p-4 shadow-md border-2 transition-all flex flex-col justify-between ${
+                    puzzle.failed 
+                    ? 'border-slate-200 opacity-70 grayscale' 
+                    : 'border-sky-200 hover:border-sky-400 hover:shadow-xl hover:-translate-y-1'
+                }`;
+
+                // Render Canvas Preview
+                const canvasId = `preview_${puzzle.id}`;
+
+                card.innerHTML = `
+                    <div>
+                        <div class="relative w-full aspect-square bg-slate-100 rounded-2xl overflow-hidden mb-3 shadow-inner">
+                            <canvas id="${canvasId}" class="w-full h-full object-contain"></canvas>
+                            ${puzzle.failed ? `
+                                <div class="absolute inset-0 bg-rose-900/40 backdrop-blur-[2px] flex flex-col items-center justify-center text-white font-bold p-2 text-center">
+                                    <i class="fa-solid fa-lock text-3xl mb-1 text-rose-300"></i>
+                                    <span class="text-xs">เล่นแพ้แล้ว ไม่สามารถเล่นซ้ำได้!</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <h3 class="font-black text-slate-800 text-lg mb-1 truncate">${puzzle.title}</h3>
+                        <p class="text-xs text-slate-400 mb-4"><i class="fa-solid fa-calendar-day"></i> สร้างเมื่อ: ${puzzle.createdAt}</p>
+                    </div>
+
+                    ${puzzle.failed ? `
+                        <button disabled class="w-full py-3 bg-slate-200 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed">
+                            🚫 เคยเล่นแพ้ภาพนี้แล้ว
+                        </button>
+                    ` : `
+                        <button onclick="startFinderGame('${puzzle.id}')" class="w-full py-3 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-xl font-bold text-sm shadow transition flex items-center justify-center gap-2">
+                            <span>เริ่มค้นหาจุดต่าง</span>
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    `}
+                `;
+
+                grid.appendChild(card);
+
+                // Render preview thumbnail after DOM insertion
+                setTimeout(() => {
+                    const c = document.getElementById(canvasId);
+                    if (c) {
+                        drawThemeCanvas(c, puzzle.presetType || 'SAFARI', puzzle.spots, true);
+                    }
+                }, 50);
+            });
+        }
+
+        /* --------------------------------------------------
+           FINDER GAMEPLAY ENGINE (ฝั่งหาจุด)
+        -------------------------------------------------- */
+        function startFinderGame(puzzleId) {
+            const puzzle = state.puzzles.find(p => p.id === puzzleId);
+            if (!puzzle || puzzle.failed) return;
+
+            state.currentPuzzle = puzzle;
+            state.finder.foundSpotIndices = [];
+            state.finder.mistakes = 0;
+            state.finder.timer = 30;
+            state.finder.startTime = Date.now();
+            state.finder.active = true;
+
+            document.getElementById('finderPuzzleTitle').innerText = puzzle.title;
+            showScreen('FINDER');
+
+            renderFinderCanvases();
+            setupFinderInteractivity();
+            updateFinderUI();
+            startFinderTimer();
+        }
+
+        function renderFinderCanvases() {
+            const puzzle = state.currentPuzzle;
+            const leftCanvas = document.getElementById('finderCanvasLeft');
+            const rightCanvas = document.getElementById('finderCanvasRight');
+
+            // Draw Clean image on Left
+            drawThemeCanvas(leftCanvas, puzzle.presetType || 'SAFARI', [], false);
+            // Draw Modified image with spots on Right
+            drawThemeCanvas(rightCanvas, puzzle.presetType || 'SAFARI', puzzle.spots, true);
+
+            // Clear Overlays
+            document.getElementById('finderOverlayLeft').innerHTML = '';
+            document.getElementById('finderOverlayRight').innerHTML = '';
+        }
+
+        function setupFinderInteractivity() {
+            const rightContainer = document.getElementById('finderRightContainer');
+
+            rightContainer.onclick = (e) => {
+                if (!state.finder.active) return;
+
+                const rect = rightContainer.getBoundingClientRect();
+                const clickX = ((e.clientX - rect.left) / rect.width) * 100;
+                const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+
+                // Check distance against hidden spots
+                let hitSpotIndex = -1;
+                const hitThresholdPercentage = 8.5; // ~35px radius proximity
+
+                state.currentPuzzle.spots.forEach((spot, idx) => {
+                    if (state.finder.foundSpotIndices.includes(idx)) return; // already found
+
+                    const dist = Math.hypot(clickX - spot.x, clickY - spot.y);
+                    if (dist <= hitThresholdPercentage) {
+                        hitSpotIndex = idx;
+                    }
+                });
+
+                if (hitSpotIndex !== -1) {
+                    // CORRECT SPOT FOUND!
+                    playSound('correct');
+                    state.finder.foundSpotIndices.push(hitSpotIndex);
+                    renderFoundRings(hitSpotIndex);
+
+                    if (state.finder.foundSpotIndices.length === 5) {
+                        // VICTORY!
+                        handleFinderVictory();
+                    }
+                } else {
+                    // MISTAKE / WRONG SPOT!
+                    playSound('wrong');
+                    state.finder.mistakes++;
+                    renderErrorCross(e.clientX - rect.left, e.clientY - rect.top);
+
+                    if (state.finder.mistakes > 2) {
+                        // DEFEAT! (Exceeded 2 mistakes)
+                        handleFinderDefeat('ทายผิดเกิน 2 ครั้งแล้ว!');
+                    }
+                }
+
+                updateFinderUI();
+            };
+        }
+
+        function renderFoundRings(spotIndex) {
+            const spot = state.currentPuzzle.spots[spotIndex];
+            ['finderOverlayLeft', 'finderOverlayRight'].forEach(containerId => {
+                const container = document.getElementById(containerId);
+                const ring = document.createElement('div');
+                ring.className = 'found-ring absolute border-4 border-emerald-400 bg-emerald-400/20 rounded-full shadow-lg pointer-events-none flex items-center justify-center';
+                ring.style.width = '50px';
+                ring.style.height = '50px';
+                ring.style.left = `${spot.x}%`;
+                ring.style.top = `${spot.y}%`;
+                ring.innerHTML = `<i class="fa-solid fa-check text-emerald-500 font-black text-xl"></i>`;
+                container.appendChild(ring);
+            });
+        }
+
+        function renderErrorCross(x, y) {
+            const container = document.getElementById('finderOverlayRight');
+            const cross = document.createElement('div');
+            cross.className = 'error-cross absolute text-rose-500 text-3xl font-black pointer-events-none';
+            cross.style.left = `${x}px`;
+            cross.style.top = `${y}px`;
+            cross.innerHTML = `✕`;
+            container.appendChild(cross);
+
+            setTimeout(() => cross.remove(), 800);
+        }
+
+        function updateFinderUI() {
+            document.getElementById('foundSpotsText').innerText = `${state.finder.foundSpotIndices.length} / 5`;
+            document.getElementById('mistakesText').innerText = `${state.finder.mistakes} / 2`;
+        }
+
+        function startFinderTimer() {
+            clearInterval(state.finder.timerInterval);
+            document.getElementById('finderTimerText').innerText = `${state.finder.timer}s`;
+
+            state.finder.timerInterval = setInterval(() => {
+                state.finder.timer--;
+                document.getElementById('finderTimerText').innerText = `${state.finder.timer}s`;
+
+                if (state.finder.timer <= 0) {
+                    clearInterval(state.finder.timerInterval);
+                    handleFinderDefeat('หมดเวลา 30 วินาที!');
+                }
+            }, 1000);
+        }
+
+        function handleFinderVictory() {
+            state.finder.active = false;
+            clearInterval(state.finder.timerInterval);
+            playSound('victory');
+
+            // Trigger Confetti Celebration
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+
+            const elapsedSeconds = ((Date.now() - state.finder.startTime) / 1000).toFixed(1);
+            state.finder.elapsedTime = elapsedSeconds;
+
+            document.getElementById('winTimeText').innerText = `${elapsedSeconds}s`;
+            document.getElementById('winMistakesText').innerText = `${state.finder.mistakes} ครั้ง`;
+            document.getElementById('victoryModal').classList.remove('hidden');
+        }
+
+        function submitWinRecord() {
+            playSound('click');
+            const winnerName = document.getElementById('winnerNameInput').value.trim() || 'น้องผู้ชนะ 🌟';
+
+            // Add Record to Leaderboard
+            const record = {
+                name: winnerName,
+                puzzleTitle: state.currentPuzzle.title,
+                time: parseFloat(state.finder.elapsedTime),
+                date: new Date().toISOString().split('T')[0]
+            };
+
+            state.leaderboard.push(record);
+            // Sort Leaderboard by time ascending (fastest first)
+            state.leaderboard.sort((a, b) => a.time - b.time);
+            state.leaderboard = state.leaderboard.slice(0, 10); // keep top 10
+
+            localStorage.setItem('kids_spot_leaderboard', JSON.stringify(state.leaderboard));
+
+            document.getElementById('victoryModal').classList.add('hidden');
+            showScreen('LEADERBOARD');
+        }
+
+        function handleFinderDefeat(reason) {
+            state.finder.active = false;
+            clearInterval(state.finder.timerInterval);
+            playSound('wrong');
+
+            // Mark Current Puzzle as Failed so it cannot be replayed!
+            state.currentPuzzle.failed = true;
+            localStorage.setItem('kids_spot_puzzles', JSON.stringify(state.puzzles));
+
+            document.getElementById('defeatReasonText').innerText = reason;
+            document.getElementById('defeatModal').classList.remove('hidden');
+        }
+
+        function closeDefeatModal() {
+            playSound('click');
+            document.getElementById('defeatModal').classList.add('hidden');
+            showScreen('LIBRARY');
+        }
+
+        /* --------------------------------------------------
+           LEADERBOARD RENDERER (ตารางอันดับ)
+        -------------------------------------------------- */
+        function renderLeaderboard() {
+            const list = document.getElementById('leaderboardList');
+            list.innerHTML = '';
+
+            if (state.leaderboard.length === 0) {
+                list.innerHTML = `<div class="p-8 text-center text-slate-400 text-sm">ยังไม่มีสถิติความไวในขณะนี้ มาเป็นคนแรกกันเลย!</div>`;
+                return;
+            }
+
+            state.leaderboard.forEach((item, idx) => {
+                const row = document.createElement('div');
+                row.className = 'p-4 grid grid-cols-12 text-center items-center text-sm font-bold text-slate-700 hover:bg-amber-50/50 transition';
+
+                let rankBadge = `${idx + 1}`;
+                if (idx === 0) rankBadge = '🥇 1';
+                else if (idx === 1) rankBadge = '🥈 2';
+                else if (idx === 2) rankBadge = '🥉 3';
+
+                row.innerHTML = `
+                    <div class="col-span-2 text-base font-black text-amber-600">${rankBadge}</div>
+                    <div class="col-span-4 text-left font-black text-slate-800 flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs">
+                            ${item.name.slice(0, 2)}
+                        </div>
+                        <span class="truncate">${item.name}</span>
+                    </div>
+                    <div class="col-span-3 text-xs text-slate-500 truncate">${item.puzzleTitle}</div>
+                    <div class="col-span-3 font-black text-emerald-600 font-fredoka text-base">${item.time}s</div>
+                `;
+
+                list.appendChild(row);
+            });
+        }
+
+        /* Initialize Game on Window Load */
+        window.onload = function() {
+            initStorage();
+            showScreen('HOME');
+        };
+    </script>
+</body>
+</html>
